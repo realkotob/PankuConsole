@@ -13,11 +13,13 @@ func init_module():
 
 	# bind window
 	window = core.windows_manager.create_window(ui)
+	add_auto_save_hook(window)
 	window.queue_free_on_close = false
 	window.set_window_title_text("History Manager")
 	load_window_data(window)
 
 func quit_module():
+	super.quit_module()
 	save_window_data(window)
 
 func open_window():

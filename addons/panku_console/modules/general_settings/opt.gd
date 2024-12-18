@@ -1,8 +1,6 @@
-extends Resource
+extends ModuleOptions
 
-var _module:PankuModule
-
-@export_group("common_settings")
+@export_group("general_settings")
 
 @export var window_blur_effect:bool = true:
 	set(v):
@@ -10,7 +8,7 @@ var _module:PankuModule
 	get:
 		return PankuLynxWindow.lynx_window_shader_material.get("shader_parameter/lod") > 0.0
 
-@export var window_color:Color = Color(0.0, 0.0, 0.0, 0.1):
+@export var window_base_color:Color = Color(0.0, 0.0, 0.0, 0.1):
 	set(v):
 		PankuLynxWindow.lynx_window_shader_material.set("shader_parameter/modulate", v)
 	get:
@@ -27,6 +25,20 @@ var _module:PankuModule
 		_module.core.windows_manager.set_os_window_bg_color(v)
 	get:
 		return _module.core.windows_manager.os_window_bg_color
+
+@export var global_font_size:int:
+	set(v):
+		_module.core.windows_manager.theme.default_font_size = v
+	get:
+		return _module.core.windows_manager.theme.default_font_size
+
+@export var export_comment_auto_global_font_size = (
+	"Adjust global font size automatically according to your device DPI"
+)
+
+@export var export_button_auto_global_font_size := "Auto Global Font Size"
+func auto_global_font_size():
+	global_font_size = int(16 * _module.get_auto_display_scale())
 
 @export var export_button_report_bugs := "Report Bugs"
 func report_bugs():

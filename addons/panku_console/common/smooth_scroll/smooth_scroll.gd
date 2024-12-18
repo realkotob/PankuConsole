@@ -26,15 +26,24 @@ func _gui_input(event: InputEvent) -> void:
 			scrollbar.value += step
 
 func _process(delta: float) -> void:
-	content.size = Vector2(clip_container.size.x, 0)
-	content.position = Vector2.ZERO
+	# add a tiny optimization here
+	if not is_visible_in_tree(): return
+	
+	# See https://github.com/Ark2000/PankuConsole/issues/183, looks quirky
+	# content.size = Vector2(clip_container.size.x, 0)
+	# content.position = Vector2.ZERO
+	content.size.x = clip_container.size.x
+	content.size.y = 0
+	content.position.y = 0
+	content.position.x = 0
+
 	scrollbar.max_value = content.size.y
 	var scrollbar_value_max = max(0, scrollbar.max_value - clip_container.size.y)
-	scrollbar.value = lerp(scrollbar.value, clampf(scrollbar.value, 0.0, scrollbar_value_max), 0.2)
+	scrollbar.value = PankuUtils.interp(scrollbar.value, clampf(scrollbar.value, 0.0, scrollbar_value_max), 10, delta)
 	scrollbar.page = clip_container.size.y
 	scrollbar.visible = content.size.y > clip_container.size.y
 
-	scroll_progress = lerp(scroll_progress, scrollbar.value, 0.2)
+	scroll_progress = PankuUtils.interp(scroll_progress, scrollbar.value, 10, delta)
 	content.position.y = - scroll_progress
 
 	if !follow_content: return

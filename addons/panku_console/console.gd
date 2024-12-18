@@ -1,10 +1,10 @@
 class_name PankuConsole extends CanvasLayer
 # `console.gd` is a global singleton that provides all modules with a common interface
 # you can also use some of its members to interact with the console
- 
+
 signal interactive_shell_visibility_changed(visible:bool)
 signal new_expression_entered(expression:String, result)
-signal new_notification_created(bbcode:String)
+signal new_notification_created(bbcode:String, id:int)
 signal toggle_console_action_just_pressed()
 
 const SingletonName = "Panku"
@@ -17,18 +17,32 @@ var create_data_controller_window:Callable = func(objs:Array): return null
 var windows_manager:PankuLynxWindowsManager
 var module_manager:PankuModuleManager = PankuModuleManager.new()
 var gd_exprenv:PankuGDExprEnv = PankuGDExprEnv.new()
+var _shell_visibility := false
 
-# generate a notification, the notification may be displayed in the console or in the game depending on the module's implementation
-func notify(any) -> void:
+# notification whose id>=0 will be fixed to the bottom of the notification list
+# useful for loop print
+# you can use `get_instance_id()` as notification's unique id
+func notify(any, id=-1) -> void:
 	var text = str(any)
-	new_notification_created.emit(text)
+	new_notification_created.emit(text, id)
 
-func _input(e):
-	if Input.is_action_just_pressed(ToggleConsoleAction):
+func get_shell_visibility() -> bool:
+	return _shell_visibility
+
+func _input(event: InputEvent):
+	if event.is_action_pressed(ToggleConsoleAction):
 		toggle_console_action_just_pressed.emit()
 
 func _ready():
 	assert(get_tree().current_scene != self, "Do not run console.tscn as a scene!")
+
+	# Yep, seems like double check project settings in the main singleton
+	# is the only "correct" way to work with custom project setting
+	# https://github.com/godotengine/godot/issues/56598#issuecomment-1904100640
+	PankuConfig.init_all_project_settings()
+
+	if not PankuConfig.is_custom_default_config_exists():
+		push_warning("[Panku Console] Default config file not found. Using code-level default config.")
 
 	windows_manager = $LynxWindowsManager
 	var base_instance = preload("./common/repl_base_instance.gd").new()
@@ -61,6 +75,8 @@ func _ready():
 		PankuModuleExpressionMonitor.new(),
 		PankuModuleTextureViewer.new(),
 		PankuModuleVariableTracker.new(),
+		PankuModuleAbout.new(),
+		PankuModuleSnakeGame.new(),
 	]
 	module_manager.init_manager(self, modules)
 

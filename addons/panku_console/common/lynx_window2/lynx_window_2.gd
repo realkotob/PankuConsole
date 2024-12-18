@@ -5,16 +5,17 @@ signal title_btn_clicked
 signal window_closed
 
 const lynx_window_shader_material:ShaderMaterial = preload("./lynx_window_shader_material.tres")
+const OS_WINDOW_MARKER = "PankuOSWindow"
 
 @export var _window_title_container:HBoxContainer
-@export var _title_btn:Button
-@export var _close_btn:Button
-@export var _options_btn:Button
+@export var _title_btn:PankuButton
+@export var _close_btn:PankuButton
+@export var _options_btn:PankuButton
 @export var _resize_btn:Button
 @export var _shadow_focus:Panel
 @export var _shadow:NinePatchRect
 @export var _container:Panel
-@export var _pop_btn:Button
+@export var _pop_btn:PankuButton
 
 @export var no_resize := false
 @export var no_resize_x := false
@@ -29,6 +30,10 @@ const lynx_window_shader_material:ShaderMaterial = preload("./lynx_window_shader
 
 @export var queue_free_on_close := true
 @export var flicker := true
+
+var transform_interp_speed := 40.0
+var bounds_interp_speed := 50.0
+var anim_interp_speed := 10.0
 
 var _is_dragging := false
 var _drag_start_position:Vector2
@@ -46,15 +51,33 @@ func add_options_button(callback:Callable):
 	_options_btn.show()
 	_options_btn.pressed.connect(callback)
 
-func centered():
+func get_layout_position(layout:Control.LayoutPreset) -> Vector2:
 	var window_rect = get_rect()
 	var screen_rect = get_viewport_rect()
-	position = (screen_rect.size - window_rect.size) / 2
-
-func get_centered_position():
-	var window_rect = get_rect()
-	var screen_rect = get_viewport_rect()
-	return (screen_rect.size - window_rect.size) / 2
+	var new_position = Vector2.ZERO
+	var end_position = screen_rect.size - window_rect.size
+	var center_position = end_position / 2
+	if layout == PRESET_TOP_LEFT:
+		pass
+	elif layout == PRESET_CENTER_TOP:
+		new_position.x = center_position.x
+	elif layout == PRESET_TOP_RIGHT:
+		new_position.x = end_position.x
+	elif layout == PRESET_CENTER_LEFT:
+		new_position.y = center_position.y
+	elif layout == PRESET_CENTER:
+		new_position = center_position
+	elif layout == PRESET_CENTER_RIGHT:
+		new_position.x = end_position.x
+		new_position.y = center_position.y
+	elif layout == PRESET_BOTTOM_LEFT:
+		new_position.y = end_position.y
+	elif layout == PRESET_CENTER_BOTTOM:
+		new_position.x = center_position.x
+		new_position.y = end_position.y
+	elif layout == PRESET_BOTTOM_RIGHT:
+		new_position = end_position
+	return new_position
 
 func get_content():
 	return _content
@@ -77,6 +100,7 @@ func highlight(v:bool):
 
 func _init_os_window():
 	_os_window = Window.new()
+	_os_window.set_meta(OS_WINDOW_MARKER, true)
 	var color_rect = ColorRect.new()
 	color_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_os_window.add_child(color_rect)
@@ -142,11 +166,14 @@ func set_window_title_text(text:String):
 	if _os_window and _os_window.visible:
 		_os_window.title = text
 	else:
-		_title_btn.text = text
+		_title_btn.text = " " + text
 
 func get_normal_window_size():
 	if _folded: return _size_before_folded
 	return size
+
+func get_title_bar_height():
+	return _window_title_container.size.y
 
 func _ready():
 	custom_minimum_size = _window_title_container.get_minimum_size()
@@ -180,8 +207,8 @@ func _ready():
 			else:
 				hide()
 	)
-	
-	_title_btn.gui_input.connect(
+
+	_title_btn.button.gui_input.connect(
 		func(e):
 			if e is InputEventMouseButton and !e.pressed:
 				if e.button_index != MOUSE_BUTTON_NONE:
@@ -198,13 +225,13 @@ func _ready():
 		$Border.hey_i_am_here()
 
 	_pop_btn.pressed.connect(switch_to_os_window)
-	
+
 	if _container.get_child_count() > 0:
 		_content = _container.get_child(0)
-		
+
 	if get_parent().has_method("get_enable_os_popup_btns"):
 		_pop_btn.visible = get_parent().get_enable_os_popup_btns()
-	
+
 	# feature: foldable window
 	title_btn_clicked.connect(
 		func():
@@ -234,38 +261,38 @@ func _input(e):
 			else:
 				hide()
 
-func _physics_process(_delta):
+func _process(delta: float) -> void:
 	if !no_move and _is_dragging:
-		var tp = position + get_local_mouse_position() - _drag_start_position
-		position = lerp(position, tp, 0.4)
+		var tp := position + get_local_mouse_position() - _drag_start_position
+		position = PankuUtils.interp(position, tp, transform_interp_speed, delta)
 	elif !no_resize and _is_resizing:
-		var ts = size + _resize_btn.get_local_mouse_position() - _resize_start_position
+		var ts := size + _resize_btn.get_local_mouse_position() - _resize_start_position
 		ts.x = min(ts.x, get_viewport_rect().size.x)
 		ts.y = min(ts.y, get_viewport_rect().size.y)
 		if !no_resize_x:
-			size.x = lerp(size.x, ts.x, 0.4)
+			size.x = PankuUtils.interp(size.x, ts.x, transform_interp_speed, delta)
 		if !no_resize_y:
-			size.y = lerp(size.y, ts.y, 0.4)
+			size.y = PankuUtils.interp(size.y, ts.y, transform_interp_speed, delta)
 	elif !no_snap:
-		var window_rect = get_rect()
-		var screen_rect = get_viewport_rect()
-		var target_position = window_rect.position
-		var target_size = window_rect.size.clamp(Vector2.ZERO, screen_rect.size)
+		var window_rect := get_rect()
+		var screen_rect := get_viewport_rect()
+		var target_position := window_rect.position
+		var target_size := window_rect.size.clamp(Vector2.ZERO, screen_rect.size)
 		if window_rect.position.y < 0:
 			target_position.y = 0
 		if window_rect.end.y > screen_rect.end.y:
 			target_position.y = screen_rect.end.y - window_rect.size.y
 		if window_rect.end.y > screen_rect.end.y + window_rect.size.y / 2:
-			target_position.y = screen_rect.end.y - 25
+			target_position.y = screen_rect.end.y - get_title_bar_height()
 		if window_rect.position.x < 0:
 			target_position.x = 0
 		if window_rect.end.x > screen_rect.end.x:
 			target_position.x = screen_rect.end.x - window_rect.size.x
 		var current_position = window_rect.position
-		current_position = lerp(current_position, target_position, 0.213)
-		size = lerp(size, target_size, 0.213)
+		current_position = PankuUtils.interp(current_position, target_position, bounds_interp_speed, delta)
+		size = PankuUtils.interp(size, target_size, bounds_interp_speed, delta)
 		position = current_position
 	if _size_animation:
 		if _target_size.is_equal_approx(size):
 			_size_animation = false
-		size = lerp(size, _target_size, 0.2)
+		size = PankuUtils.interp(size, _target_size, anim_interp_speed, delta)

@@ -1,5 +1,4 @@
-extends Resource
-var _module:PankuModule
+extends ModuleOptions
 
 @export_group("engine_tools")
 
@@ -28,11 +27,14 @@ func toggle_2d_debug_draw():
 func reload_current_scene():
 	_module.reload_current_scene()
 
-@export_range(0.1, 2.0) var time_scale := 1.0:
+@export_range(0.1, 10.0, 0.01) var time_scale := 1.0:
 	set(v):
 		time_scale = v
 		_module.set_time_scale(time_scale)
 
+@export var export_comment_count_nodes = "Show node count in performance info (can issue extra performance hit)."
+@export var count_nodes := false
+
 @export var readonly_performance_info:String:
 	get:
-		return _module.get_performance_info()
+		return _module.get_performance_info(count_nodes)
